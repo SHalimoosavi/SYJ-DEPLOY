@@ -1,0 +1,963 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>SYJ Deploy — Dashboard</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.min.js"></script>
+<style>
+  :root {
+    --bg: #0a0a0f;
+    --surface: #111118;
+    --surface2: #1a1a24;
+    --border: #1e1e2e;
+    --accent: #7c3aed;
+    --accent2: #a855f7;
+    --green: #22c55e;
+    --red: #ef4444;
+    --yellow: #f59e0b;
+    --blue: #3b82f6;
+    --text: #e2e8f0;
+    --muted: #64748b;
+    --font: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace;
+    --sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: var(--sans); min-height: 100vh; }
+
+  /* ── Auth Screen ── */
+  #auth-screen {
+    display: flex; align-items: center; justify-content: center;
+    min-height: 100vh; padding: 20px;
+    background: radial-gradient(ellipse at 50% 0%, #1a0a3e 0%, var(--bg) 60%);
+  }
+  .auth-card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 16px; padding: 40px; width: 100%; max-width: 400px;
+    box-shadow: 0 0 60px rgba(124,58,237,0.15);
+  }
+  .auth-logo { text-align: center; margin-bottom: 32px; }
+  .auth-logo .logo-mark {
+    width: 56px; height: 56px; background: linear-gradient(135deg, var(--accent), var(--accent2));
+    border-radius: 14px; display: inline-flex; align-items: center; justify-content: center;
+    font-size: 24px; font-weight: 900; color: white; margin-bottom: 12px; font-family: var(--font);
+    box-shadow: 0 0 30px rgba(124,58,237,0.4);
+  }
+  .auth-logo h1 { font-size: 22px; font-weight: 700; color: var(--text); }
+  .auth-logo p { color: var(--muted); font-size: 13px; margin-top: 4px; }
+  .field { margin-bottom: 16px; }
+  .field label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 6px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; }
+  .field input {
+    width: 100%; background: var(--bg); border: 1px solid var(--border);
+    border-radius: 8px; padding: 12px 14px; color: var(--text); font-size: 14px;
+    outline: none; transition: border-color 0.2s;
+  }
+  .field input:focus { border-color: var(--accent); }
+  .btn-primary {
+    width: 100%; padding: 12px; background: var(--accent); border: none;
+    border-radius: 8px; color: white; font-size: 14px; font-weight: 600;
+    cursor: pointer; transition: opacity 0.2s; margin-top: 8px;
+  }
+  .btn-primary:hover { opacity: 0.85; }
+  .auth-error { color: var(--red); font-size: 13px; margin-top: 12px; text-align: center; min-height: 18px; }
+
+  /* ── Layout ── */
+  #app { display: none; height: 100vh; overflow: hidden; }
+  .layout { display: flex; height: 100vh; }
+
+  /* ── Sidebar ── */
+  .sidebar {
+    width: 220px; flex-shrink: 0; background: var(--surface);
+    border-right: 1px solid var(--border); display: flex; flex-direction: column;
+    padding: 0; overflow: hidden;
+  }
+  .sidebar-logo {
+    padding: 20px 16px 16px; border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; gap: 10px;
+  }
+  .sidebar-logo .mark {
+    width: 32px; height: 32px; background: linear-gradient(135deg, var(--accent), var(--accent2));
+    border-radius: 8px; display: flex; align-items: center; justify-content: center;
+    font-weight: 900; font-size: 14px; color: white; font-family: var(--font); flex-shrink: 0;
+  }
+  .sidebar-logo span { font-weight: 700; font-size: 15px; color: var(--text); }
+  .sidebar-logo small { font-size: 10px; color: var(--muted); display: block; font-weight: 400; }
+
+  .sidebar-nav { padding: 12px 8px; flex: 1; }
+  .nav-item {
+    display: flex; align-items: center; gap: 10px; padding: 9px 10px;
+    border-radius: 8px; cursor: pointer; font-size: 13px; color: var(--muted);
+    transition: all 0.15s; border: none; background: none; width: 100%; text-align: left;
+  }
+  .nav-item:hover { background: var(--surface2); color: var(--text); }
+  .nav-item.active { background: rgba(124,58,237,0.15); color: var(--accent2); }
+  .nav-item svg { flex-shrink: 0; }
+
+  .sidebar-footer {
+    padding: 12px 8px; border-top: 1px solid var(--border);
+  }
+  .user-pill {
+    display: flex; align-items: center; gap: 8px; padding: 8px 10px;
+    border-radius: 8px; cursor: pointer;
+  }
+  .user-pill:hover { background: var(--surface2); }
+  .user-avatar {
+    width: 28px; height: 28px; background: var(--accent); border-radius: 50%;
+    display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; color: white;
+  }
+  .user-name { font-size: 12px; font-weight: 600; color: var(--text); flex: 1; }
+  .logout-btn { font-size: 11px; color: var(--muted); background: none; border: none; cursor: pointer; }
+  .logout-btn:hover { color: var(--red); }
+
+  /* ── Main ── */
+  .main { flex: 1; overflow-y: auto; display: flex; flex-direction: column; }
+  .topbar {
+    padding: 16px 28px; border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: space-between;
+    background: var(--surface); flex-shrink: 0;
+  }
+  .topbar h2 { font-size: 16px; font-weight: 700; }
+  .topbar p { font-size: 12px; color: var(--muted); margin-top: 2px; }
+  .content { padding: 24px 28px; flex: 1; }
+
+  /* ── Stats ── */
+  .stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 28px; }
+  .stat-card {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
+    padding: 20px; position: relative; overflow: hidden;
+  }
+  .stat-card::before {
+    content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px;
+    background: linear-gradient(90deg, var(--accent), var(--accent2));
+  }
+  .stat-label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; font-weight: 600; }
+  .stat-value { font-size: 28px; font-weight: 800; color: var(--text); margin-top: 8px; font-family: var(--font); }
+  .stat-sub { font-size: 11px; color: var(--muted); margin-top: 4px; }
+
+  /* ── Apps grid ── */
+  .section-header {
+    display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px;
+  }
+  .section-header h3 { font-size: 14px; font-weight: 700; color: var(--text); }
+  .btn-create {
+    display: flex; align-items: center; gap: 6px; padding: 8px 14px;
+    background: var(--accent); border: none; border-radius: 8px; color: white;
+    font-size: 13px; font-weight: 600; cursor: pointer; transition: opacity 0.2s;
+  }
+  .btn-create:hover { opacity: 0.85; }
+
+  .apps-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 16px; }
+  .app-card {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
+    padding: 20px; cursor: pointer; transition: all 0.2s; position: relative;
+  }
+  .app-card:hover { border-color: var(--accent); transform: translateY(-1px); box-shadow: 0 8px 24px rgba(0,0,0,0.3); }
+  .app-card-header { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 14px; }
+  .app-name { font-size: 15px; font-weight: 700; color: var(--text); }
+  .app-type { font-size: 10px; color: var(--muted); background: var(--surface2); border: 1px solid var(--border); border-radius: 4px; padding: 2px 6px; font-family: var(--font); }
+  .status-badge {
+    display: inline-flex; align-items: center; gap: 5px; padding: 3px 9px;
+    border-radius: 20px; font-size: 11px; font-weight: 600;
+  }
+  .status-badge::before { content: ''; width: 6px; height: 6px; border-radius: 50%; }
+  .status-running { background: rgba(34,197,94,0.1); color: var(--green); }
+  .status-running::before { background: var(--green); box-shadow: 0 0 6px var(--green); animation: pulse 2s infinite; }
+  .status-stopped { background: rgba(100,116,139,0.1); color: var(--muted); }
+  .status-stopped::before { background: var(--muted); }
+  .status-building { background: rgba(245,158,11,0.1); color: var(--yellow); }
+  .status-building::before { background: var(--yellow); animation: pulse 1s infinite; }
+  .status-failed { background: rgba(239,68,68,0.1); color: var(--red); }
+  .status-failed::before { background: var(--red); }
+  .status-idle { background: rgba(100,116,139,0.1); color: var(--muted); }
+  .status-idle::before { background: var(--muted); }
+  .status-deploying { background: rgba(59,130,246,0.1); color: var(--blue); }
+  .status-deploying::before { background: var(--blue); animation: pulse 1s infinite; }
+
+  @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.3; } }
+
+  .app-repo { font-size: 11px; color: var(--muted); font-family: var(--font); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; margin-bottom: 14px; }
+  .app-meta { display: flex; gap: 12px; flex-wrap: wrap; }
+  .meta-item { font-size: 11px; color: var(--muted); display: flex; align-items: center; gap: 4px; }
+  .app-actions { display: flex; gap: 8px; margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--border); }
+  .btn-sm {
+    flex: 1; padding: 7px; border-radius: 6px; font-size: 12px; font-weight: 600;
+    cursor: pointer; border: 1px solid var(--border); background: var(--surface2);
+    color: var(--text); transition: all 0.15s;
+  }
+  .btn-sm:hover { border-color: var(--accent); color: var(--accent2); }
+  .btn-sm.danger:hover { border-color: var(--red); color: var(--red); }
+  .btn-sm.success { background: rgba(34,197,94,0.1); border-color: rgba(34,197,94,0.3); color: var(--green); }
+  .btn-sm.success:hover { background: rgba(34,197,94,0.2); }
+
+  .empty-state {
+    text-align: center; padding: 60px 20px; color: var(--muted);
+  }
+  .empty-state .icon { font-size: 40px; margin-bottom: 12px; }
+  .empty-state h3 { font-size: 16px; color: var(--text); margin-bottom: 6px; }
+  .empty-state p { font-size: 13px; }
+
+  /* ── Modal ── */
+  .modal-overlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.7); backdrop-filter: blur(4px);
+    display: flex; align-items: center; justify-content: center; z-index: 100;
+    padding: 20px;
+  }
+  .modal-overlay.hidden { display: none; }
+  .modal {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 16px;
+    width: 100%; max-width: 540px; max-height: 90vh; overflow-y: auto;
+    box-shadow: 0 24px 80px rgba(0,0,0,0.5);
+  }
+  .modal-header {
+    padding: 22px 24px 18px; border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .modal-header h3 { font-size: 16px; font-weight: 700; }
+  .modal-close { background: none; border: none; color: var(--muted); cursor: pointer; font-size: 20px; line-height: 1; }
+  .modal-close:hover { color: var(--text); }
+  .modal-body { padding: 24px; }
+  .modal-footer { padding: 16px 24px; border-top: 1px solid var(--border); display: flex; gap: 10px; justify-content: flex-end; }
+
+  .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .form-field { margin-bottom: 16px; }
+  .form-field label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 6px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; }
+  .form-field input, .form-field select, .form-field textarea {
+    width: 100%; background: var(--bg); border: 1px solid var(--border);
+    border-radius: 8px; padding: 10px 12px; color: var(--text); font-size: 13px;
+    outline: none; transition: border-color 0.2s; font-family: inherit;
+  }
+  .form-field input:focus, .form-field select:focus, .form-field textarea:focus { border-color: var(--accent); }
+  .form-field textarea { resize: vertical; min-height: 80px; font-family: var(--font); }
+  .form-field .hint { font-size: 11px; color: var(--muted); margin-top: 4px; }
+  .btn-cancel {
+    padding: 9px 18px; background: var(--surface2); border: 1px solid var(--border);
+    border-radius: 8px; color: var(--text); font-size: 13px; font-weight: 600; cursor: pointer;
+  }
+  .btn-cancel:hover { border-color: var(--text); }
+
+  /* ── Logs panel ── */
+  .logs-panel {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
+    overflow: hidden;
+  }
+  .logs-header {
+    padding: 14px 18px; border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .logs-header h4 { font-size: 13px; font-weight: 700; display: flex; align-items: center; gap: 8px; }
+  .logs-body {
+    background: #050508; font-family: var(--font); font-size: 12px; line-height: 1.7;
+    padding: 16px; height: 340px; overflow-y: auto; color: #a0aec0;
+  }
+  .log-line { white-space: pre-wrap; word-break: break-all; }
+  .log-line.success { color: var(--green); }
+  .log-line.error { color: var(--red); }
+  .log-line.info { color: var(--blue); }
+  .log-line.warn { color: var(--yellow); }
+  .log-line.bold { color: var(--text); font-weight: 600; }
+
+  /* ── App Detail View ── */
+  .detail-header {
+    display: flex; align-items: flex-start; justify-content: space-between;
+    margin-bottom: 24px; gap: 16px;
+  }
+  .detail-title { font-size: 22px; font-weight: 800; }
+  .detail-meta { font-size: 12px; color: var(--muted); margin-top: 4px; font-family: var(--font); }
+  .detail-actions { display: flex; gap: 8px; flex-shrink: 0; }
+  .btn-back {
+    display: inline-flex; align-items: center; gap: 6px; padding: 7px 12px;
+    background: var(--surface2); border: 1px solid var(--border); border-radius: 8px;
+    color: var(--muted); font-size: 12px; cursor: pointer; margin-bottom: 20px;
+  }
+  .btn-back:hover { color: var(--text); border-color: var(--text); }
+  .btn-danger {
+    padding: 8px 14px; background: rgba(239,68,68,0.1); border: 1px solid rgba(239,68,68,0.3);
+    border-radius: 8px; color: var(--red); font-size: 13px; font-weight: 600; cursor: pointer;
+  }
+  .btn-danger:hover { background: rgba(239,68,68,0.2); }
+  .btn-deploy {
+    padding: 8px 16px; background: var(--accent); border: none;
+    border-radius: 8px; color: white; font-size: 13px; font-weight: 600; cursor: pointer;
+    display: flex; align-items: center; gap: 6px;
+  }
+  .btn-deploy:hover { opacity: 0.85; }
+
+  .detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 24px; }
+  .detail-card {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 18px;
+  }
+  .detail-card-label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; font-weight: 600; margin-bottom: 8px; }
+  .detail-card-value { font-size: 14px; color: var(--text); font-family: var(--font); }
+
+  .deployments-list { margin-bottom: 24px; }
+  .dep-item {
+    display: flex; align-items: center; gap: 12px; padding: 12px 16px;
+    border: 1px solid var(--border); border-radius: 8px; margin-bottom: 8px;
+    background: var(--surface);
+  }
+  .dep-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+  .dep-dot.success { background: var(--green); }
+  .dep-dot.failed { background: var(--red); }
+  .dep-commit { font-family: var(--font); font-size: 12px; color: var(--text); flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .dep-meta { font-size: 11px; color: var(--muted); flex-shrink: 0; }
+
+  /* ── Toast ── */
+  .toast-container { position: fixed; bottom: 24px; right: 24px; z-index: 999; display: flex; flex-direction: column; gap: 8px; }
+  .toast {
+    background: var(--surface2); border: 1px solid var(--border); border-radius: 10px;
+    padding: 12px 16px; font-size: 13px; color: var(--text); min-width: 260px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.4); animation: slideIn 0.2s ease;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .toast.green { border-color: rgba(34,197,94,0.4); }
+  .toast.red { border-color: rgba(239,68,68,0.4); }
+  @keyframes slideIn { from { transform: translateX(20px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+
+  /* ── Responsive ── */
+  @media (max-width: 768px) {
+    .sidebar { display: none; }
+    .stats-grid { grid-template-columns: repeat(2, 1fr); }
+    .apps-grid { grid-template-columns: 1fr; }
+    .detail-grid { grid-template-columns: 1fr; }
+    .content { padding: 16px; }
+    .form-row { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<!-- Auth Screen -->
+<div id="auth-screen">
+  <div class="auth-card">
+    <div class="auth-logo">
+      <div class="logo-mark">SYJ</div>
+      <h1>SYJ Deploy</h1>
+      <p>Self-Hosted PaaS · SAYANJALI NEXUS</p>
+    </div>
+    <div class="field">
+      <label>Username</label>
+      <input type="text" id="auth-user" placeholder="admin" autocomplete="username" />
+    </div>
+    <div class="field">
+      <label>Password</label>
+      <input type="password" id="auth-pass" placeholder="••••••••" autocomplete="current-password" />
+    </div>
+    <button class="btn-primary" id="login-btn">Sign In</button>
+    <div class="auth-error" id="auth-error"></div>
+  </div>
+</div>
+
+<!-- Main App -->
+<div id="app">
+  <div class="layout">
+    <!-- Sidebar -->
+    <aside class="sidebar">
+      <div class="sidebar-logo">
+        <div class="mark">SYJ</div>
+        <div>
+          <span>SYJ Deploy</span>
+          <small>v1.0.0-beta</small>
+        </div>
+      </div>
+      <nav class="sidebar-nav">
+        <button class="nav-item active" data-view="dashboard">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+          Dashboard
+        </button>
+        <button class="nav-item" data-view="apps">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
+          Apps
+        </button>
+        <button class="nav-item" data-view="settings">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M4.93 4.93a10 10 0 0 0 0 14.14"/></svg>
+          Settings
+        </button>
+      </nav>
+      <div class="sidebar-footer">
+        <div class="user-pill">
+          <div class="user-avatar" id="user-avatar">A</div>
+          <span class="user-name" id="user-name">admin</span>
+          <button class="logout-btn" id="logout-btn">↪</button>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main">
+      <!-- Dashboard View -->
+      <div id="view-dashboard">
+        <div class="topbar">
+          <div>
+            <h2>Dashboard</h2>
+            <p>Overview of all running services</p>
+          </div>
+          <button class="btn-create" id="create-app-btn">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            Deploy App
+          </button>
+        </div>
+        <div class="content">
+          <div class="stats-grid">
+            <div class="stat-card">
+              <div class="stat-label">Total Apps</div>
+              <div class="stat-value" id="stat-total">0</div>
+              <div class="stat-sub">Registered services</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-label">Running</div>
+              <div class="stat-value" id="stat-running" style="color:var(--green)">0</div>
+              <div class="stat-sub">Active processes</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-label">Deployments</div>
+              <div class="stat-value" id="stat-deploys">0</div>
+              <div class="stat-sub">All time</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-label">Uptime</div>
+              <div class="stat-value" id="stat-uptime" style="font-size:18px;padding-top:4px">—</div>
+              <div class="stat-sub">Platform uptime</div>
+            </div>
+          </div>
+
+          <div class="section-header">
+            <h3>All Applications</h3>
+          </div>
+          <div class="apps-grid" id="apps-grid">
+            <div class="empty-state">
+              <div class="icon">🚀</div>
+              <h3>No apps yet</h3>
+              <p>Deploy your first app to get started</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- App Detail View -->
+      <div id="view-app-detail" style="display:none">
+        <div class="topbar" id="detail-topbar">
+          <div><h2 id="detail-title">App</h2><p id="detail-subtitle"></p></div>
+          <div class="detail-actions">
+            <button class="btn-sm" id="detail-restart-btn">↺ Restart</button>
+            <button class="btn-deploy" id="detail-deploy-btn">⚡ Deploy</button>
+          </div>
+        </div>
+        <div class="content">
+          <button class="btn-back" id="back-btn">← Back to Dashboard</button>
+
+          <div class="detail-grid" id="detail-info-grid"></div>
+
+          <div class="section-header" style="margin-bottom:12px">
+            <h3>Live Logs</h3>
+            <button class="btn-sm" id="clear-logs-btn" style="flex:none;width:auto;padding:6px 12px">Clear</button>
+          </div>
+          <div class="logs-panel" style="margin-bottom:24px">
+            <div class="logs-header">
+              <h4>
+                <span id="log-status-dot" style="width:8px;height:8px;background:var(--green);border-radius:50%;display:inline-block"></span>
+                <span id="log-app-name">—</span>
+              </h4>
+              <button class="btn-sm" id="auto-scroll-btn" style="flex:none;width:auto;padding:4px 10px;font-size:11px">Auto-scroll ON</button>
+            </div>
+            <div class="logs-body" id="logs-body"></div>
+          </div>
+
+          <div class="section-header" style="margin-bottom:12px">
+            <h3>Deployment History</h3>
+          </div>
+          <div class="deployments-list" id="deployments-list"></div>
+
+          <div style="padding-top:8px;border-top:1px solid var(--border);margin-top:8px">
+            <button class="btn-danger" id="delete-app-btn">Delete App</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Settings View -->
+      <div id="view-settings" style="display:none">
+        <div class="topbar"><div><h2>Settings</h2><p>Platform configuration</p></div></div>
+        <div class="content">
+          <div class="detail-card" style="max-width:540px">
+            <div class="detail-card-label">Platform Info</div>
+            <div style="display:grid;gap:12px;margin-top:12px">
+              <div><span style="color:var(--muted);font-size:12px">Name</span><div class="detail-card-value">SYJ Deploy</div></div>
+              <div><span style="color:var(--muted);font-size:12px">Version</span><div class="detail-card-value">1.0.0-beta</div></div>
+              <div><span style="color:var(--muted);font-size:12px">By</span><div class="detail-card-value">SAYANJALI NEXUS PRIVATE LIMITED</div></div>
+              <div><span style="color:var(--muted);font-size:12px">GitHub</span><div class="detail-card-value"><a href="https://github.com/SHalimoosavi" target="_blank" style="color:var(--accent2)">github.com/SHalimoosavi</a></div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+</div>
+
+<!-- Create App Modal -->
+<div class="modal-overlay hidden" id="create-modal">
+  <div class="modal">
+    <div class="modal-header">
+      <h3>Deploy New App</h3>
+      <button class="modal-close" id="close-modal">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-row">
+        <div class="form-field">
+          <label>App Name</label>
+          <input type="text" id="new-name" placeholder="my-app" />
+          <div class="hint">Lowercase, hyphens only</div>
+        </div>
+        <div class="form-field">
+          <label>Type</label>
+          <select id="new-type">
+            <option value="auto">Auto-detect</option>
+            <option value="node">Node.js</option>
+            <option value="nextjs">Next.js</option>
+            <option value="react">React</option>
+            <option value="python">Python</option>
+            <option value="static">Static HTML</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-field">
+        <label>GitHub Repository URL</label>
+        <input type="text" id="new-repo" placeholder="https://github.com/user/repo" />
+      </div>
+      <div class="form-row">
+        <div class="form-field">
+          <label>Branch</label>
+          <input type="text" id="new-branch" placeholder="main" value="main" />
+        </div>
+        <div class="form-field">
+          <label>Build Command</label>
+          <input type="text" id="new-build" placeholder="npm run build (optional)" />
+        </div>
+      </div>
+      <div class="form-field">
+        <label>Start Command</label>
+        <input type="text" id="new-start" placeholder="npm start" value="npm start" />
+      </div>
+      <div class="form-field">
+        <label>Environment Variables</label>
+        <textarea id="new-env" placeholder="KEY=value&#10;ANOTHER_KEY=value"></textarea>
+        <div class="hint">One per line, KEY=value format</div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-cancel" id="cancel-modal">Cancel</button>
+      <button class="btn-primary" id="confirm-create" style="width:auto;padding:9px 20px;margin:0">Deploy</button>
+    </div>
+  </div>
+</div>
+
+<!-- Toast container -->
+<div class="toast-container" id="toast-container"></div>
+
+<script>
+const API = '/api';
+let socket = null;
+let currentUser = null;
+let allApps = [];
+let currentAppId = null;
+let autoScroll = true;
+
+// ── Utils ─────────────────────────────────────────────────────────────────────
+
+function $(id) { return document.getElementById(id); }
+
+function toast(msg, type = 'info') {
+  const el = document.createElement('div');
+  el.className = `toast ${type === 'success' ? 'green' : type === 'error' ? 'red' : ''}`;
+  const icon = type === 'success' ? '✓' : type === 'error' ? '✕' : 'ℹ';
+  el.innerHTML = `<span style="font-weight:700">${icon}</span> ${msg}`;
+  $('toast-container').appendChild(el);
+  setTimeout(() => el.remove(), 3500);
+}
+
+async function api(method, path, body) {
+  const opts = { method, headers: { 'Content-Type': 'application/json' }, credentials: 'include' };
+  if (body) opts.body = JSON.stringify(body);
+  const res = await fetch(API + path, opts);
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'Request failed');
+  return data;
+}
+
+function formatDate(iso) {
+  if (!iso) return 'Never';
+  return new Date(iso).toLocaleString('en-IN', { dateStyle: 'short', timeStyle: 'short' });
+}
+
+function formatUptime(seconds) {
+  if (!seconds) return '—';
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  if (h > 0) return `${h}h ${m}m`;
+  return `${m}m`;
+}
+
+function parseEnvText(text) {
+  const env = {};
+  text.split('\n').forEach(line => {
+    const [k, ...v] = line.split('=');
+    if (k && k.trim()) env[k.trim()] = v.join('=').trim();
+  });
+  return env;
+}
+
+// ── Views ─────────────────────────────────────────────────────────────────────
+
+function showView(id) {
+  ['view-dashboard', 'view-app-detail', 'view-settings'].forEach(v => {
+    $(v).style.display = v === id ? 'flex' : 'none';
+    $(v).style.flexDirection = 'column';
+  });
+  document.querySelectorAll('.nav-item').forEach(btn => {
+    const vMap = { dashboard: 'view-dashboard', apps: 'view-dashboard', settings: 'view-settings' };
+    btn.classList.toggle('active', vMap[btn.dataset.view] === id);
+  });
+}
+
+// ── Auth ──────────────────────────────────────────────────────────────────────
+
+async function checkSession() {
+  try {
+    const data = await api('GET', '/auth/me');
+    currentUser = data.user;
+    showApp();
+  } catch {
+    showAuth();
+  }
+}
+
+function showAuth() {
+  $('auth-screen').style.display = 'flex';
+  $('app').style.display = 'none';
+}
+
+function showApp() {
+  $('auth-screen').style.display = 'none';
+  $('app').style.display = 'block';
+  $('user-name').textContent = currentUser.username;
+  $('user-avatar').textContent = currentUser.username[0].toUpperCase();
+  initSocket();
+  loadApps();
+  startUptimePoll();
+}
+
+$('login-btn').addEventListener('click', async () => {
+  const username = $('auth-user').value.trim();
+  const password = $('auth-pass').value;
+  $('auth-error').textContent = '';
+  try {
+    const data = await api('POST', '/auth/login', { username, password });
+    currentUser = data.user;
+    showApp();
+  } catch (err) {
+    $('auth-error').textContent = err.message;
+  }
+});
+
+$('auth-pass').addEventListener('keydown', e => { if (e.key === 'Enter') $('login-btn').click(); });
+
+$('logout-btn').addEventListener('click', async () => {
+  await api('POST', '/auth/logout');
+  socket?.disconnect();
+  showAuth();
+});
+
+// ── Apps ──────────────────────────────────────────────────────────────────────
+
+async function loadApps() {
+  try {
+    const data = await api('GET', '/apps');
+    allApps = data.apps;
+    renderApps();
+    updateStats();
+  } catch (err) {
+    toast('Failed to load apps: ' + err.message, 'error');
+  }
+}
+
+function renderApps() {
+  const grid = $('apps-grid');
+  if (!allApps.length) {
+    grid.innerHTML = `
+      <div class="empty-state">
+        <div class="icon">🚀</div>
+        <h3>No apps yet</h3>
+        <p>Click "Deploy App" to get started</p>
+      </div>`;
+    return;
+  }
+  grid.innerHTML = allApps.map(app => `
+    <div class="app-card" data-id="${app.id}">
+      <div class="app-card-header">
+        <div>
+          <div class="app-name">${app.name}</div>
+          <div class="app-type">${app.stackType || app.type || 'auto'}</div>
+        </div>
+        <div class="status-badge status-${app.status}">${app.status}</div>
+      </div>
+      <div class="app-repo">⎇ ${app.branch} · ${app.repoUrl.replace('https://github.com/', '')}</div>
+      <div class="app-meta">
+        <span class="meta-item">⚡ ${app.deployCount || 0} deploys</span>
+        ${app.port ? `<span class="meta-item">🌐 :${app.port}</span>` : ''}
+        <span class="meta-item">🕐 ${formatDate(app.deployedAt)}</span>
+      </div>
+      <div class="app-actions">
+        <button class="btn-sm success deploy-btn" data-id="${app.id}">▶ Deploy</button>
+        <button class="btn-sm restart-btn" data-id="${app.id}">↺ Restart</button>
+        <button class="btn-sm" onclick="openAppDetail('${app.id}')">Logs →</button>
+      </div>
+    </div>
+  `).join('');
+
+  grid.querySelectorAll('.app-card').forEach(card => {
+    card.addEventListener('click', e => {
+      if (!e.target.closest('button')) openAppDetail(card.dataset.id);
+    });
+  });
+  grid.querySelectorAll('.deploy-btn').forEach(btn => {
+    btn.addEventListener('click', e => { e.stopPropagation(); triggerDeploy(btn.dataset.id); });
+  });
+  grid.querySelectorAll('.restart-btn').forEach(btn => {
+    btn.addEventListener('click', e => { e.stopPropagation(); triggerRestart(btn.dataset.id); });
+  });
+}
+
+function updateStats() {
+  $('stat-total').textContent = allApps.length;
+  $('stat-running').textContent = allApps.filter(a => a.status === 'running').length;
+  $('stat-deploys').textContent = allApps.reduce((s, a) => s + (a.deployCount || 0), 0);
+}
+
+async function startUptimePoll() {
+  async function poll() {
+    try {
+      const data = await api('GET', '/health');
+      $('stat-uptime').textContent = formatUptime(data.uptime);
+    } catch {}
+  }
+  poll();
+  setInterval(poll, 10000);
+}
+
+// ── Deploy actions ────────────────────────────────────────────────────────────
+
+async function triggerDeploy(appId) {
+  try {
+    await api('POST', `/deploy/${appId}`);
+    toast('Deployment started!', 'success');
+    loadApps();
+  } catch (err) {
+    toast(err.message, 'error');
+  }
+}
+
+async function triggerStop(appId) {
+  try {
+    await api('POST', `/deploy/${appId}/stop`);
+    toast('App stopped', 'info');
+    loadApps();
+  } catch (err) {
+    toast(err.message, 'error');
+  }
+}
+
+async function triggerRestart(appId) {
+  try {
+    await api('POST', `/deploy/${appId}/restart`);
+    toast('Restart initiated', 'success');
+  } catch (err) {
+    toast(err.message, 'error');
+  }
+}
+
+// ── App Detail ────────────────────────────────────────────────────────────────
+
+async function openAppDetail(appId) {
+  currentAppId = appId;
+  const app = allApps.find(a => a.id === appId);
+  if (!app) return;
+
+  showView('view-app-detail');
+  $('detail-title').textContent = app.name;
+  $('detail-subtitle').textContent = `${app.repoUrl} · ${app.branch}`;
+  $('log-app-name').textContent = app.name;
+
+  $('detail-info-grid').innerHTML = `
+    <div class="detail-card">
+      <div class="detail-card-label">Status</div>
+      <div class="status-badge status-${app.status}" style="margin-top:8px">${app.status}</div>
+    </div>
+    <div class="detail-card">
+      <div class="detail-card-label">Port</div>
+      <div class="detail-card-value">${app.port || '—'}</div>
+    </div>
+    <div class="detail-card">
+      <div class="detail-card-label">Stack</div>
+      <div class="detail-card-value">${app.stackType || app.type || 'auto'}</div>
+    </div>
+    <div class="detail-card">
+      <div class="detail-card-label">Last Deploy</div>
+      <div class="detail-card-value">${formatDate(app.deployedAt)}</div>
+    </div>
+    <div class="detail-card" style="grid-column:span 2">
+      <div class="detail-card-label">Start Command</div>
+      <div class="detail-card-value">${app.startCommand || '—'}</div>
+    </div>
+  `;
+
+  // Load logs
+  const logsBody = $('logs-body');
+  logsBody.innerHTML = '';
+  try {
+    const { logs } = await api('GET', `/logs/${appId}?lines=200`);
+    logs.forEach(line => appendLog(line));
+  } catch {}
+
+  // Subscribe to live logs
+  socket?.emit('subscribe', { appId });
+
+  // Load deployments
+  try {
+    const { deployments } = await api('GET', `/apps/${appId}/deployments`);
+    $('deployments-list').innerHTML = deployments.length
+      ? deployments.map(d => `
+          <div class="dep-item">
+            <div class="dep-dot ${d.status}"></div>
+            <div class="dep-commit">${d.commit || 'manual deploy'}</div>
+            <div class="dep-meta">${d.duration}s · ${formatDate(d.createdAt)}</div>
+          </div>`).join('')
+      : '<div style="color:var(--muted);font-size:13px">No deployments yet</div>';
+  } catch {}
+
+  // Wire buttons
+  $('detail-deploy-btn').onclick = () => triggerDeploy(appId);
+  $('detail-restart-btn').onclick = () => triggerRestart(appId);
+  $('delete-app-btn').onclick = () => deleteApp(appId);
+  $('clear-logs-btn').onclick = async () => {
+    await api('DELETE', `/logs/${appId}`);
+    logsBody.innerHTML = '';
+    toast('Logs cleared', 'info');
+  };
+}
+
+function appendLog(line) {
+  const logsBody = $('logs-body');
+  const div = document.createElement('div');
+  div.className = 'log-line';
+  if (line.includes('✅') || line.includes('✓')) div.classList.add('success');
+  else if (line.includes('❌') || line.includes('[stderr]') || line.includes('[err]')) div.classList.add('error');
+  else if (line.includes('▶') || line.includes('⚡')) div.classList.add('info');
+  else if (line.includes('⚙') || line.includes('↓')) div.classList.add('warn');
+  div.textContent = line;
+  logsBody.appendChild(div);
+  if (autoScroll) logsBody.scrollTop = logsBody.scrollHeight;
+}
+
+$('auto-scroll-btn').addEventListener('click', () => {
+  autoScroll = !autoScroll;
+  $('auto-scroll-btn').textContent = `Auto-scroll ${autoScroll ? 'ON' : 'OFF'}`;
+});
+
+$('back-btn').addEventListener('click', () => {
+  socket?.emit('unsubscribe', { appId: currentAppId });
+  currentAppId = null;
+  showView('view-dashboard');
+  loadApps();
+});
+
+async function deleteApp(appId) {
+  const app = allApps.find(a => a.id === appId);
+  if (!confirm(`Delete "${app?.name}"? This cannot be undone.`)) return;
+  try {
+    await api('DELETE', `/apps/${appId}`);
+    toast(`${app?.name} deleted`, 'success');
+    $('back-btn').click();
+  } catch (err) {
+    toast(err.message, 'error');
+  }
+}
+
+// ── Create Modal ──────────────────────────────────────────────────────────────
+
+$('create-app-btn').addEventListener('click', () => {
+  $('create-modal').classList.remove('hidden');
+});
+$('close-modal').addEventListener('click', () => $('create-modal').classList.add('hidden'));
+$('cancel-modal').addEventListener('click', () => $('create-modal').classList.add('hidden'));
+
+$('confirm-create').addEventListener('click', async () => {
+  const name = $('new-name').value.trim().toLowerCase();
+  const repoUrl = $('new-repo').value.trim();
+  const branch = $('new-branch').value.trim() || 'main';
+  const buildCommand = $('new-build').value.trim();
+  const startCommand = $('new-start').value.trim() || 'npm start';
+  const type = $('new-type').value;
+  const envVars = parseEnvText($('new-env').value);
+
+  if (!name || !repoUrl) { toast('Name and repo URL are required', 'error'); return; }
+
+  try {
+    $('confirm-create').textContent = 'Creating...';
+    $('confirm-create').disabled = true;
+    const { app } = await api('POST', '/apps', { name, repoUrl, branch, buildCommand, startCommand, envVars, type });
+    $('create-modal').classList.add('hidden');
+    toast(`${app.name} created! Starting deployment...`, 'success');
+    await loadApps();
+    await triggerDeploy(app.id);
+    openAppDetail(app.id);
+  } catch (err) {
+    toast(err.message, 'error');
+  } finally {
+    $('confirm-create').textContent = 'Deploy';
+    $('confirm-create').disabled = false;
+  }
+});
+
+// ── Nav ───────────────────────────────────────────────────────────────────────
+
+document.querySelectorAll('.nav-item').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const v = btn.dataset.view;
+    if (v === 'dashboard' || v === 'apps') showView('view-dashboard');
+    if (v === 'settings') showView('view-settings');
+  });
+});
+
+// ── Socket ────────────────────────────────────────────────────────────────────
+
+function initSocket() {
+  socket = io({ transports: ['websocket'] });
+
+  socket.on('appStatus', ({ appId, status }) => {
+    const app = allApps.find(a => a.id === appId);
+    if (app) { app.status = status; renderApps(); updateStats(); }
+    if (appId === currentAppId) {
+      const badge = document.querySelector('#detail-info-grid .status-badge');
+      if (badge) { badge.className = `status-badge status-${status}`; badge.textContent = status; }
+    }
+  });
+
+  socket.on('log', ({ appId, line }) => {
+    if (appId === currentAppId) appendLog(line);
+  });
+
+  socket.on('logHistory', ({ logs }) => {
+    $('logs-body').innerHTML = '';
+    logs.forEach(line => appendLog(line));
+  });
+
+  socket.on('deployed', ({ appId, name, port }) => {
+    toast(`${name} deployed on port ${port} 🎉`, 'success');
+    loadApps();
+  });
+}
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+
+checkSession();
+</script>
+</body>
+</html>
