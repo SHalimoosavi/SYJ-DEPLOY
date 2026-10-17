@@ -1,14 +1,16 @@
 {
   "name": "syj-deploy",
-  "version": "1.0.0-beta",
-  "description": "SYJ Deploy — Open Source Self-Hosted PaaS by SAYANJALI NEXUS",
+  "version": "1.1.0-beta",
+  "description": "Self-hosted Git-based deployment dashboard: clone, build, run and monitor apps from your own server.",
   "main": "core/server.js",
   "scripts": {
     "start": "node core/server.js",
-    "dev": "nodemon core/server.js",
-    "setup": "node scripts/setup.js"
+    "dev": "node --watch core/server.js",
+    "setup": "node scripts/setup.js",
+    "test": "node --test",
+    "lint": "node scripts/lint.js"
   },
-  "keywords": ["paas", "self-hosted", "deploy", "open-source", "sayanjali"],
+  "keywords": ["paas", "self-hosted", "deployment", "nodejs", "devops"],
   "author": "Syed Ali Hasan Moosavi <cto@sayanjalinexus.com>",
   "license": "MIT",
   "dependencies": {
@@ -25,10 +27,5 @@
     "detect-port": "^1.5.1",
     "adm-zip": "^0.5.10"
   },
-  "devDependencies": {
-    "nodemon": "^3.0.1"
-  },
-  "engines": {
-    "node": ">=18.0.0"
-  }
+  "engines": { "node": ">=18.18.0" }
 }

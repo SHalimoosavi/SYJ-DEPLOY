@@ -1,0 +1,1 @@
+function restartAllowed(app,max){return app.autoRestart!==false&&(app.restartCount||0)<max}function reconcileAction(app,alive,healthy,max){if(app.status!=='running')return'ignore';if(alive&&healthy)return'keep';return restartAllowed(app,max)?'restart':'stop'}module.exports={restartAllowed,reconcileAction};

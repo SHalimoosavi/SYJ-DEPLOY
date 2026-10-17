@@ -1,8 +1,1 @@
-function requireAuth(req, res, next) {
-  if (!req.session || !req.session.userId) {
-    return res.status(401).json({ error: 'Authentication required' });
-  }
-  next();
-}
-
-module.exports = { requireAuth };
+const {findUserById}=require('../db');function requireAuth(req,res,next){if(!req.session.userId)return res.status(401).json({error:'Authentication required'});next()}function requireRole(...roles){return async(req,res,next)=>{try{const u=await findUserById(req.session.userId);if(!u||u.disabled)return res.status(401).json({error:'Authentication required'});if(!roles.includes(u.role))return res.status(403).json({error:'Insufficient role'});req.user=u;next()}catch(e){next(e)}}}module.exports={requireAuth,requireRole};

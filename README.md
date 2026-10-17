@@ -1,316 +1,139 @@
-<div align="center">
-
-<img src="https://img.shields.io/badge/SYJ-Deploy-7c3aed?style=for-the-badge&labelColor=0a0a0f&color=7c3aed" alt="SYJ Deploy" height="32"/>
-
 # SYJ Deploy
 
-### Open-Source, Self-Hosted PaaS — Deploy Any App From Any GitHub Repo
+SYJ Deploy is a lightweight self-hosted Git-based deployment dashboard. It can clone a repository, detect a supported application stack, build it, run it, stream logs and expose basic deployment state from a server you control.
 
-**No credit card. No vendor lock-in. No monthly bills. Your server, your rules.**
+This repository contains the **v1.1.0-beta hardening release**. It is deliberately a small Node.js/Express application, not a general-purpose infrastructure orchestrator.
 
-<br/>
+> **Security notice:** SYJ Deploy is not production-ready for untrusted users when the process runner is used or when the service is not protected by HTTPS. The process runner executes application commands with the platform account and provides no isolation. Prefer Docker mode for workloads that are not fully trusted and put the dashboard behind HTTPS.
 
-[![Release](https://img.shields.io/github/v/release/SHalimoosavi/syj-deploy?style=flat-square&label=release&color=7c3aed)](https://github.com/SHalimoosavi/syj-deploy/releases)
-[![License: MIT](https://img.shields.io/badge/license-MIT-22c55e?style=flat-square)](LICENSE)
-[![Node.js](https://img.shields.io/badge/node-%3E%3D18-3b82f6?style=flat-square&logo=node.js&logoColor=white)](https://nodejs.org)
-[![Termux Ready](https://img.shields.io/badge/termux-ready-f59e0b?style=flat-square)](https://termux.dev)
-[![Made in India](https://img.shields.io/badge/made%20in-India%20🇮🇳-ef4444?style=flat-square)](https://sayanjalinexus.com)
-[![SAYANJALI NEXUS](https://img.shields.io/badge/by-SAYANJALI%20NEXUS-7c3aed?style=flat-square)](https://github.com/SHalimoosavi)
+## What works
 
-<br/>
+- First-run admin setup; no built-in credentials.
+- Session authentication with bcrypt password hashing, CSRF protection, login backoff and role checks.
+- App creation and lifecycle actions.
+- Git HTTPS/SSH repository cloning with branch validation.
+- Node.js, Next.js, Vite, Python and static stack detection.
+- Build/start commands with timeouts, output limits and a reduced child-process environment.
+- Encrypted application environment variables using AES-256-GCM.
+- Atomic JSON metadata storage with schema versioning, rolling backups and recovery.
+- Bounded deployment queue with per-app exclusivity and cancellation.
+- Health-gated deployments and retained release directories.
+- Rollback to a retained release without replacing the active release before health succeeds.
+- Process reconciliation and bounded restart attempts.
+- Optional Docker execution with CPU/memory limits and a non-root container user.
+- HTTP/WebSocket proxy by `/apps/<name>/...` and `<name>.<BASE_DOMAIN>` when configured.
+- Caddy configuration generation for TLS termination; ACME is intentionally handled by Caddy.
+- GitHub webhook signature verification and branch filtering.
+- Admin/developer/viewer RBAC and an audit log for sensitive actions.
+- Basic per-app memory/uptime/restart metrics where the host exposes them.
+- Local Socket.IO client, manifest, icons and service-worker shell caching.
 
-> Built and tested on **Android + Termux** · Deployed a Python AI repo in **9.1 seconds** · Zero external dependencies
+## Limitations
 
-<br/>
+- JSON storage is intended for a single platform instance, not a clustered control plane.
+- The deployment queue is in-process and is lost if the platform process is terminated.
+- The process runner provides no isolation or resource sandbox.
+- Docker availability and Docker security are host responsibilities.
+- CPU metrics are not currently reported; Linux memory metrics use `/proc`, while unsupported hosts report the limitation.
+- The built-in proxy is intentionally small; for public internet traffic, use a hardened reverse proxy/TLS terminator such as Caddy in front of it.
+- Application-specific databases, persistent volumes and distributed scheduling are not included.
 
-<img src="https://raw.githubusercontent.com/SHalimoosavi/syj-deploy/main/docs/preview-login.jpg" width="220" alt="SYJ Deploy Login"/> &nbsp;&nbsp;
-<img src="https://raw.githubusercontent.com/SHalimoosavi/syj-deploy/main/docs/preview-logs.jpg" width="220" alt="SYJ Deploy Live Logs"/> &nbsp;&nbsp;
-<img src="https://raw.githubusercontent.com/SHalimoosavi/syj-deploy/main/docs/preview-deployed.jpg" width="220" alt="SYJ Deploy Success"/>
+## Quick start
 
-*Screenshots from live test — deploying [SYJ Scholar AI](https://github.com/SHalimoosavi/SYJ-SCHOLAR-AI) on Termux, June 2026*
-
-</div>
-
----
-
-## What is SYJ Deploy?
-
-SYJ Deploy is a **self-hosted deployment platform** — like Vercel and Railway combined — that runs entirely on your own machine. Point it at any GitHub repository, and it will clone the code, detect the stack automatically, install dependencies, build the project, and keep the process running with live log streaming to a real-time dashboard.
-
-It runs on a $4/month VPS, an Oracle Free Tier instance, a Raspberry Pi, or — as proven in testing — **a stock Android phone running Termux with no modifications.**
-
-There is no Docker required. No Kubernetes. No external database. No cloud account. Just Node.js and a GitHub URL.
-
----
-
-## Features
-
-```
-✓ One-command install          curl | bash — works on Termux, Ubuntu, Debian, macOS
-✓ Auto stack detection         Node.js · Next.js · React · Vite · Python · Static HTML
-✓ Real-time log streaming      WebSocket-powered live deploy logs in the browser
-✓ Git-based deployments        Clone or pull from any public GitHub repository
-✓ Zero-config database         Lightweight JSON store — no Postgres, Redis, or MongoDB
-✓ Per-app environment vars     Manage .env variables per app from the dashboard
-✓ Full lifecycle control       Deploy · Stop · Restart · Delete — all from one UI
-✓ Deployment history           Track every deploy with status, duration, and commit hash
-✓ Session-based auth           Secure login system with persistent admin credentials
-✓ Dark dashboard SPA           Vanilla JS — no React, no build step, instant load
-✓ Open source (MIT)            Fork it, extend it, brand it, sell it
-```
-
----
-
-## Live Demo — What the Screenshots Show
-
-These screenshots were taken during the first live test of SYJ Deploy running on an Android phone via Termux:
-
-| Screenshot | What's Happening |
-|---|---|
-| **Login screen** | Clean auth UI loading at `localhost:3000` on Android Chrome |
-| **Build in progress** | App status `building`, cloning `SHalimoosavi/SYJ-SCHOLAR-AI` from GitHub, Python stack auto-detected, `pip install` running |
-| **Deployed** | `✅ Deployed successfully in 9.1s` — running on port `3165`, toast confirmation shown |
-
-**Repo deployed in test:** [`SYJ Scholar AI`](https://github.com/SHalimoosavi/SYJ-SCHOLAR-AI) — an offline-first Python AI assistant
-
----
-
-## Install
-
-### One-liner (Linux · macOS · Termux)
+Requirements: Node.js 18.18+ and Git.
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/SHalimoosavi/syj-deploy/main/install.sh | bash
-```
-
-Then start the platform:
-
-```bash
-cd ~/syj-deploy && npm start
-```
-
-Open **`http://localhost:3000`** — sign in with `admin` / `admin123`
-
----
-
-### Termux on Android (full steps)
-
-```bash
-# 1. Install system deps
-pkg update -y && pkg install nodejs git curl -y
-
-# 2. Install SYJ Deploy
-curl -fsSL https://raw.githubusercontent.com/SHalimoosavi/syj-deploy/main/install.sh | bash
-
-# 3. Start
-cd ~/syj-deploy && npm start
-```
-
-> SYJ Deploy runs fully in Termux for development and portfolio demos. For production traffic, point it to a VPS with a public IP and optionally set up a reverse proxy with Nginx + Let's Encrypt.
-
----
-
-### Manual Install
-
-```bash
-git clone https://github.com/SHalimoosavi/syj-deploy
-cd syj-deploy
 npm install
-cp .env.example .env
-# Edit .env — set your password
+npm run setup
 npm start
 ```
 
----
+Open `http://localhost:3000`. The setup command creates the first administrator and persists `SESSION_SECRET` and `MASTER_KEY` in `.env` with restrictive permissions where supported.
 
-## Deploy Your First App
-
-1. Open `http://localhost:3000` and sign in
-2. Click **Deploy App**
-3. Fill in the form:
-
-```
-App Name     →  my-api           (lowercase, hyphens only)
-Repo URL     →  https://github.com/you/your-repo
-Branch       →  main
-Type         →  Auto-detect      (or pick your stack)
-Start Cmd    →  npm start
-Env Vars     →  PORT=3000
-              NODE_ENV=production
-```
-
-4. Click **Deploy** — watch the live log stream as SYJ Deploy:
-   - Clones the repo
-   - Detects your stack
-   - Installs dependencies
-   - Runs your build command
-   - Spawns the process on an available port
-
----
-
-## Supported Stacks
-
-| Stack | Detection Signal | Build Step | Default Start |
-|---|---|---|---|
-| **Node.js** | `package.json` | none (optional) | `npm start` |
-| **Next.js** | `next` in deps | `npm run build` | `npm start` |
-| **React (CRA)** | `react-scripts` | `npm run build` | `serve -s build` |
-| **Vite** | `vite` in deps | `npm run build` | `serve -s dist` |
-| **Python** | `requirements.txt` | `pip install -r requirements.txt` | `python app.py` |
-| **Static HTML** | `index.html` | none | `serve -s .` |
-
-All build and start commands can be overridden per-app from the dashboard.
-
----
-
-## Architecture
-
-```
-┌─────────────────────────────────────────────────┐
-│                   Your Server                   │
-│                                                 │
-│  ┌──────────────┐     ┌───────────────────────┐ │
-│  │  Dashboard   │────▶│   Express REST API    │ │
-│  │  (Vanilla JS)│     │   + Socket.IO Server  │ │
-│  └──────────────┘     └──────────┬────────────┘ │
-│                                  │              │
-│                         ┌────────▼────────┐     │
-│                         │    Deployer     │     │
-│                         │                │     │
-│                         │  git clone/pull│     │
-│                         │  stack detect  │     │
-│                         │  npm/pip build │     │
-│                         │  spawn process │     │
-│                         └────────┬────────┘     │
-│                                  │              │
-│          ┌───────────────────────▼────────────┐ │
-│          │         Running Apps               │ │
-│          │  app-1 → :3101  app-2 → :3102 ...  │ │
-│          └───────────────────────────────────-┘ │
-│                                                 │
-│  ┌─────────────────────────────────────────┐    │
-│  │  JSON Database (zero external deps)     │    │
-│  │  data/db.json  ·  logs/<appId>.log      │    │
-│  └─────────────────────────────────────────┘    │
-└─────────────────────────────────────────────────┘
-```
-
----
+For a completely new checkout, `npm install` is the intended installation command. Runtime state is created only after startup and is ignored by Git.
 
 ## Configuration
 
-Edit `syj-deploy/.env`:
+| Variable | Default | Purpose |
+|---|---|---|
+| `PORT` | `3000` | Dashboard/API listener. |
+| `PROXY_PORT` | `0` | Optional separate application proxy listener. |
+| `BASE_DOMAIN` | empty | Enables `<app-name>.<BASE_DOMAIN>` routing. |
+| `ALLOWED_ORIGINS` | empty | Comma-separated browser origins allowed for CORS/Socket.IO. Empty means same-origin only. |
+| `TRUST_PROXY` | `0` | Express trusted proxy setting. Set when HTTPS is terminated by a trusted proxy. |
+| `SESSION_SECRET` | generated | Session signing secret. |
+| `MASTER_KEY` | generated | Key material used to derive the AES-256-GCM environment encryption key. |
+| `DATA_DIR` | `./data` | Metadata storage. |
+| `APPS_DIR` | `./apps` | Release and application working directories. |
+| `LOGS_DIR` | `./logs` | Deployment and audit logs. |
+| `BUILD_TIMEOUT_MS` | `600000` | Maximum build/platform command duration. |
+| `HEALTH_TIMEOUT_MS` | `5000` | Individual health-check timeout. |
+| `HEALTH_RETRIES` | `8` | Health-check attempts after start. |
+| `MAX_LOG_BYTES` | `5242880` | Per-log-file cap before rotation. |
+| `MAX_RELEASES` | `5` | Retained releases per app. |
+| `MAX_CONCURRENT_DEPLOYS` | `2` | Global deployment concurrency. |
+| `MAX_RESTARTS` | `5` | Maximum automatic restarts during reconciliation. |
+| `AUTO_RESTART_DEFAULT` | `true` | Default application restart policy. |
+| `DOCKER_ENABLED` | `true` | Allow Docker mode when Docker is available. |
+| `DOCKER_MEMORY` | `512m` | Docker memory limit. |
+| `DOCKER_CPUS` | `1` | Docker CPU limit. |
 
-```env
-PORT=3000
-SESSION_SECRET=replace-this-with-a-random-string
-ADMIN_USER=admin
-ADMIN_PASSWORD=your-secure-password
-NODE_ENV=production
+Do not commit `.env`, `data/`, `apps/` or `logs/`.
+
+## Process runner vs Docker runner
+
+| | Process runner | Docker runner |
+|---|---|---|
+| Isolation | None | Container boundary, subject to host Docker configuration |
+| Resource limits | Build/log limits; no application sandbox | CPU and memory flags |
+| User | Platform account | Non-root `1000:1000` inside container |
+| Host mounts | Application release directory | Application release directory, read-only |
+| Recommended for untrusted code | No | Prefer this option, still audit your Docker host |
+
+## GitHub webhooks
+
+After creating an app, the dashboard exposes the webhook endpoint and an admin-only webhook secret. Configure GitHub to send JSON `push` events to:
+
+```text
+POST /api/deploy/webhooks/github/<app-id>
 ```
 
-Run `node scripts/setup.js` for an interactive setup wizard.
+The signature is verified with `X-Hub-Signature-256`, and pushes for other branches are ignored.
 
----
+## Caddy
 
-## Project Structure
+When `BASE_DOMAIN` and `PROXY_PORT` are configured, an authenticated admin can retrieve a starter Caddyfile from `/api/caddyfile`. Caddy is responsible for TLS certificates and ACME. SYJ Deploy does not implement certificate issuance itself.
 
-```
-syj-deploy/
-├── core/
-│   ├── server.js          # Express + Socket.IO boot
-│   ├── deployer.js        # Git → detect → build → spawn engine
-│   ├── db.js              # JSON database layer
-│   ├── logger.js          # Per-app log files
-│   ├── socket.js          # Real-time WebSocket handlers
-│   ├── middleware/
-│   │   └── auth.js        # Session-based auth guard
-│   └── routes/
-│       ├── apps.js        # CRUD for apps
-│       ├── auth.js        # Login / logout / session
-│       ├── deploy.js      # Deploy · Stop · Restart
-│       └── logs.js        # Log read / clear
-├── dashboard/
-│   └── public/
-│       └── index.html     # Complete dashboard SPA (single file)
-├── scripts/
-│   └── setup.js           # Interactive first-run setup
-├── install.sh             # One-liner installer
-├── .env.example
-├── package.json
-└── README.md
+## Development and tests
+
+```bash
+npm test
+npm run lint
 ```
 
----
+The test suite uses Node's built-in test runner. CI also runs ESLint on supported Node versions and platforms and performs an `npm audit` report without failing the release solely on audit findings.
 
 ## Roadmap
 
-- [ ] **GitHub webhooks** — auto-deploy on `git push`
-- [ ] **Docker support** — containerized app isolation
-- [ ] **Custom domains + SSL** — Let's Encrypt via `certbot` or `acme.sh`
-- [ ] **Database provisioning** — one-click Postgres / SQLite per app
-- [ ] **Multi-user RBAC** — team access with role-based permissions
-- [ ] **Metrics dashboard** — CPU, memory, request count per app
-- [ ] **Reverse proxy layer** — built-in Nginx config generation
-- [ ] **Mobile PWA** — installable dashboard for phone management
+- [x] First-run setup and security hardening
+- [x] Git-based deployments and health-gated releases
+- [x] Deployment queue and rollback
+- [x] Optional Docker runner
+- [x] Basic proxy and Caddy configuration generation
+- [x] Signed GitHub webhooks
+- [x] RBAC and audit logging
+- [x] Basic host metrics
+- [x] Local Socket.IO client and PWA shell
+- [ ] Persistent application databases and volumes
+- [ ] Distributed workers / multi-node scheduling
+- [ ] Advanced observability and alerting
 
----
+## Known issues
 
-## Other Projects by the Author
-
-SYJ Deploy is part of a growing open-source ecosystem built at **SAYANJALI NEXUS PRIVATE LIMITED**:
-
-| Project | Description | Stack |
-|---|---|---|
-| [**SYJ Scholar AI**](https://github.com/SHalimoosavi/SYJ-SCHOLAR-AI) | Offline-first Python AI assistant for Termux · 66 files · ~6,000 lines | Python · Groq · Gemini |
-| [**SYJ WebSense AI**](https://github.com/SHalimoosavi/SYJ-WebSense-AI) | CLI website Q&A chatbot — scrape any URL and ask questions | Python · BeautifulSoup · Groq |
-| [**SYJ Ride**](https://github.com/SHalimoosavi/syj-ride) | Full-stack ride-hailing app targeting Portugal · real-time map tracking | Next.js 14 · Supabase · Socket.io · Leaflet |
-| [**NexusShield**](https://github.com/SHalimoosavi/NexusShield) | Cyber audit CLI for SMBs · CVSS 4.0-aligned scoring | Python · Termux |
-| [**SYJ NexusIntel AI**](https://github.com/SHalimoosavi/NexusIntel) | OSINT and competitive intelligence automation | Python · AI |
-| **SYJ Deploy** ← you are here | Self-hosted PaaS · Vercel + Railway alternative | Node.js · Express · Socket.IO |
-
-More at [**github.com/SHalimoosavi**](https://github.com/SHalimoosavi)
-
----
-
-## About the Author
-
-<table>
-<tr>
-<td width="72" valign="top">
-<img src="https://github.com/SHalimoosavi.png" width="64" style="border-radius:50%" alt="Syed Ali Hasan Moosavi"/>
-</td>
-<td valign="top">
-
-**Syed Ali Hasan Moosavi**
-Founder & Managing Director · SAYANJALI NEXUS PRIVATE LIMITED
-Hyderabad, Telangana, India 🇮🇳
-
-Building AI products, automation systems, and open-source developer tools.
-
-[![GitHub](https://img.shields.io/badge/GitHub-SHalimoosavi-181717?style=flat-square&logo=github)](https://github.com/SHalimoosavi)
-[![Email](https://img.shields.io/badge/Email-cto@sayanjalinexus.com-7c3aed?style=flat-square&logo=gmail&logoColor=white)](mailto:cto@sayanjalinexus.com)
-
-</td>
-</tr>
-</table>
-
----
+- Full end-to-end application deployment requires the runtime dependencies in `package.json`, Git, and optionally Docker; the repository's automated unit tests intentionally avoid heavy test dependencies.
+- The current CI workflow reports `npm audit` findings rather than treating them as a release blocker; review the report before an internet-facing deployment.
+- The process runner remains intentionally unsafe for untrusted application code. Use Docker and HTTPS for a stronger deployment posture.
 
 ## License
 
-MIT © 2025–2026 [Syed Ali Hasan Moosavi](https://github.com/SHalimoosavi) · SAYANJALI NEXUS PRIVATE LIMITED
-
-Free to use, modify, distribute, and build commercial products on top of. Attribution appreciated.
-
----
-
-<div align="center">
-
-**If SYJ Deploy saved you a Vercel bill, leave a ⭐**
-
-*Built with intent · Shipped from Termux · Open forever*
-
-[github.com/SHalimoosavi](https://github.com/SHalimoosavi) · [cto@sayanjalinexus.com](mailto:cto@sayanjalinexus.com)
-
-</div>
+MIT. See [LICENSE](LICENSE).
