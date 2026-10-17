@@ -1,0 +1,30 @@
+name: CI
+on:
+  push:
+  pull_request:
+concurrency:
+  group: syj-deploy-ci-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        node: ['18','20','22']
+    runs-on: ${{ matrix.os }}
+    env:
+      SYJ_SKIP_INTEGRATION: ${{ matrix.os == 'ubuntu-latest' && '1' || '0' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+      - run: npm install
+      - run: npm test
+      - run: npm run lint
+      - name: ESLint
+        run: npx --yes eslint@8.57.0 core scripts tests
+      - name: npm audit report
+        run: npm audit --audit-level=high || true
